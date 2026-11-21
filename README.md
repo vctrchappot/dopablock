@@ -45,7 +45,7 @@ Domains schließen Subdomains ein (`youtube.com` → `m.youtube.com`).
 ## Grenzen
 
 - Selbstkontroll-Werkzeug, kein Kinderschutz: Wer die Erweiterung deaktiviert oder einen anderen Browser nutzt, umgeht sie. Auch die PIN ist eine Bremse gegen Impulse, keine Sicherheit.
-- Die Seite lädt im Hintergrund weiter. Beim Laden ist sie für einen kurzen Moment sichtbar, bevor das Overlay erscheint (die Regeln werden asynchron aus dem Speicher gelesen).
+- Die Seite lädt im Hintergrund weiter. Das Overlay erscheint nach rund 70–110 ms und damit vor dem ersten Paint (gemessen in `e2e/flicker.spec.js`, auf einer schnellen lokalen Fake-Seite). Auf sehr schnellen echten Seiten oder bei langsamer Festplatte kann ein kurzer Blitz möglich sein.
 - Die Selektoren fürs Ausblenden (z. B. YouTube-Shorts-Regale) hängen vom Seitenaufbau ab, den die Plattformen gelegentlich ändern. Die Pfad-Sperren sind davon unabhängig.
 - Die E2E-Tests laufen gegen kontrollierte Fake-Seiten unter den echten Hostnamen. Dass die Pfadmuster auch zu den *aktuellen* echten Seiten passen, muss man gelegentlich im Browser gegenprüfen.
 - Die Erweiterung braucht Zugriff auf alle Webseiten, um die Adresse lokal mit deinen Regeln zu vergleichen.
