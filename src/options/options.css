@@ -562,3 +562,28 @@
   display: grid;
   gap: 12px;
 }
+
+/* URL tester */
+.tester {
+  padding: 10px;
+  border-radius: var(--r-xl);
+}
+.test-body {
+  display: grid;
+  gap: 10px;
+  padding: 0 12px 12px;
+}
+.test-out {
+  display: grid;
+  gap: 6px;
+}
+.test-hit {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+  font-size: 13.5px;
+}
+.test-hit .tag:first-of-type {
+  margin-left: auto;
+}

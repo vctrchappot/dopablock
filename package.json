@@ -1,6 +1,6 @@
 {
   "name": "dopablock",
-  "version": "1.1.0",
+  "version": "1.2.0",
   "private": true,
   "description": "Screen-time control for your browser: track, limit or block feeds like the TikTok FYP, Instagram Reels and YouTube Shorts.",
   "scripts": {

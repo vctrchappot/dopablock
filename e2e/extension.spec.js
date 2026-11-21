@@ -247,3 +247,16 @@ test('sync mirrors rules and settings (not usage, pause or focus) to storage.syn
   const all = await worker.evaluate(() => chrome.storage.sync.get(null));
   expect(Object.keys(all).some((k) => k.includes('usage'))).toBe(false);
 });
+
+test('URL tester shows which rules cover an address', async ({ context, extId }) => {
+  const options = await context.newPage();
+  await options.goto(`chrome-extension://${extId}/src/options/options.html#rules`);
+  const input = options.getByLabel('Test a URL');
+  await input.fill('https://www.youtube.com/shorts/abc123');
+  await expect(options.locator('.test-hit', { hasText: 'YouTube' }).first()).toBeVisible();
+  await expect(options.locator('.test-out')).toContainText('Shorts');
+  await input.fill('example.org/nothing');
+  await expect(options.locator('.test-out')).toContainText('No rule covers this address.');
+  await input.fill('http://');
+  await expect(options.locator('.test-out')).toContainText('Not a valid address.');
+});

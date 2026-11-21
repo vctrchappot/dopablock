@@ -375,10 +375,52 @@
         h('div', null, h('h1', null, t('rules.title')), h('p', null, t('rules.sub'))),
         h('div', { class: 'toolbar' }, h('div', { class: 'search' }, icon('search', 17), search), h('button', { class: 'btn primary', onclick: () => openEditor(null) }, icon('plus', 16), t('rules.new')))
       ),
+      renderTester(rules),
       groups,
       groups.length || customShown.length ? null : h('div', { class: 'card custom-empty' }, t('rules.none')),
       !q || customShown.length ? customCard : null,
     ];
+  }
+
+  /* ───────────── URL tester ───────────── */
+
+  let testUrl = '';
+  function renderTester(rules) {
+    const input = h('input', { class: 'input', type: 'text', placeholder: t('test.placeholder'), value: testUrl, 'aria-label': t('test.title'), spellcheck: 'false', autocomplete: 'off' });
+    const out = h('div', { class: 'test-out', 'aria-live': 'polite' });
+    const run = () => {
+      testUrl = input.value.trim();
+      out.replaceChildren();
+      if (!testUrl) return;
+      let url;
+      try {
+        url = new URL(/^[a-z][a-z0-9+.-]*:\/\//i.test(testUrl) ? testUrl : 'https://' + testUrl);
+      } catch (_) {
+        out.append(h('span', { class: 'tag tone-red' }, t('test.invalid')));
+        return;
+      }
+      const hits = rules.filter((r) => r.hosts.length && DB.hostMatches(url.hostname, r.hosts) && DB.pathMatches(url.pathname, r.paths, r.exclude));
+      const hideOnly = rules.filter((r) => r.hide.length && DB.hostMatches(url.hostname, r.hosts) && !r.paths.length);
+      if (!hits.length && !hideOnly.length) {
+        out.append(h('span', { class: 'tag tone-gray' }, t('test.none')));
+        return;
+      }
+      const modeTone = { off: 'gray', track: 'blue', limit: 'orange', block: 'red' };
+      for (const r of hits.concat(hideOnly)) {
+        out.append(
+          h(
+            'div',
+            { class: 'test-hit' },
+            h('strong', null, r.siteName + ' · ' + r.name),
+            h('span', { class: 'tag tone-' + modeTone[r.mode] }, t('mode.' + r.mode)),
+            r.paths.length ? null : h('span', { class: 'tag tone-purple' }, t('rules.hidesOnly'))
+          )
+        );
+      }
+    };
+    input.addEventListener('input', run);
+    run();
+    return h('section', { class: 'card tester' }, h('div', { class: 'group-head' }, h('div', null, h('strong', null, t('test.title')), h('small', null, t('test.sub')))), h('div', { class: 'test-body' }, input, out));
   }
 
   /* ───────────── editor dialog ───────────── */

@@ -23,6 +23,7 @@ Chrome ab Version 110 (auch Edge/Brave und andere Chromium-Browser). Kein Build-
 - **Bereiche statt ganzer Seiten:** Regeln für TikTok (FYP, Following, Explore, LIVE, Einzelvideos), Instagram (Reels, Feed, Explore, Stories), YouTube (Shorts inkl. Regalen/Tab, Startseite, Vorschläge, Kommentare), Snapchat, Facebook, X, Reddit, LinkedIn, Threads, Bluesky, Pinterest, Twitch, Netflix, Discord.
 - **Gesperrt = unscharf:** Die Seite bleibt hinter einer Glas-Karte sichtbar, aber unscharf, eingefroren und stumm. Alternativ „Einfarbig“ in den Einstellungen.
 - **Eigene Regeln** für beliebige Seiten und Unterseiten, mit Ausnahmen und optionalen CSS-Selektoren zum Ausblenden von Elementen.
+- **URL-Tester** in der Regeln-Ansicht: Adresse einfügen und sehen, welche Regeln sie abdecken, praktisch zum Prüfen der Muster an echten Seiten.
 - **Zeitpläne** pro Regel (Tage + Uhrzeit, auch über Mitternacht).
 - **Fokus-Sessions** (25/50/90 Min.): Alle aktiven Regeln sind hart gesperrt, ohne Ausnahmen, unabhängig von Zeitplan und Pause.
 - **Selbstkontrolle:** „Durchatmen“-Wartezeit vor Ausnahmen, globale Pause, *Strikter Modus*, optionale **PIN** (für Ausnahmen, Pause, Lockern von Regeln, Fokus beenden und die Einstellungen).
@@ -74,3 +75,9 @@ npm run screenshots      # store/screenshots/*.png
 ```
 
 CI läuft über die gemeinsame Pipeline `vctrchappot/ci` (`.github/workflows/ci.yml`, Ergebnis `ci / check`).
+
+Release: Tag `vX.Y.Z` pushen (muss zur `manifest.json`-Version passen), dann hängt `.github/workflows/release.yml` das Store-ZIP an ein GitHub-Release. Änderungen stehen im [CHANGELOG](CHANGELOG.md).
+
+## Lizenz
+
+[MIT](LICENSE)

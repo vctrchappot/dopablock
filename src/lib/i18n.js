@@ -81,6 +81,11 @@
       'rules.customTitle': 'Your custom rules',
       'rules.customEmpty': 'Block any website or sub-page that is not in the list above.',
       'rules.none': 'No rules match your search.',
+      'test.title': 'Test a URL',
+      'test.sub': 'Paste a page address to see which rules cover it – handy to check patterns against the real site.',
+      'test.placeholder': 'e.g. youtube.com/shorts/abc123',
+      'test.none': 'No rule covers this address.',
+      'test.invalid': 'Not a valid address.',
       'rules.hidesOnly': 'Hides elements',
       'rules.edit': 'Edit',
 
@@ -289,6 +294,11 @@
       'rules.customTitle': 'Deine eigenen Regeln',
       'rules.customEmpty': 'Sperre jede Website oder Unterseite, die oben nicht aufgeführt ist.',
       'rules.none': 'Keine Regeln gefunden.',
+      'test.title': 'URL testen',
+      'test.sub': 'Füge eine Seitenadresse ein und sieh, welche Regeln sie abdecken – praktisch, um Muster an der echten Seite zu prüfen.',
+      'test.placeholder': 'z. B. youtube.com/shorts/abc123',
+      'test.none': 'Keine Regel deckt diese Adresse ab.',
+      'test.invalid': 'Keine gültige Adresse.',
       'rules.hidesOnly': 'Blendet Elemente aus',
       'rules.edit': 'Bearbeiten',
 
