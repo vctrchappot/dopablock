@@ -117,18 +117,40 @@
     style.textContent = css;
   }
 
-  function setPageHidden(hidden) {
+  // Blurred mode keeps the page visible (behind the glass overlay) but frozen:
+  // no scrolling, no pointer input, and `inert` removes it from keyboard focus.
+  let inertBody = null;
+  function setInert(on) {
+    if (on) {
+      const b = document.body;
+      if (b && !b.inert) {
+        b.inert = true;
+        inertBody = b;
+      }
+    } else if (inertBody) {
+      inertBody.inert = false;
+      inertBody = null;
+    }
+  }
+
+  function setPageLocked(locked) {
     let style = document.getElementById(BLOCK_STYLE_ID);
-    if (!hidden) {
+    if (!locked) {
       if (style) style.remove();
+      setInert(false);
       return;
     }
+    const solid = !!config && config.settings.blockStyle === 'solid';
+    const css = solid
+      ? 'html>body{display:none!important}'
+      : 'html,body{overflow:hidden!important}body{pointer-events:none!important;user-select:none!important;-webkit-user-select:none!important}';
     if (!style) {
       style = document.createElement('style');
       style.id = BLOCK_STYLE_ID;
-      style.textContent = 'html>body{display:none!important}';
       (document.documentElement || document).append(style);
     }
+    if (style.textContent !== css) style.textContent = css;
+    setInert(!solid);
   }
 
   function syncOverlay(res, force) {
@@ -138,11 +160,11 @@
         overlay = null;
         overlayKey = '';
       }
-      setPageHidden(false);
+      setPageLocked(false);
       return;
     }
     const key = res.blocked.rule.id + '|' + res.blocked.reason;
-    setPageHidden(true);
+    setPageLocked(true);
     if (overlay && overlayKey === key && !force) {
       if (!overlay.host.isConnected) (document.documentElement || document).append(overlay.host);
       return;
@@ -162,6 +184,14 @@
         else send({ type: 'close' });
       },
       onClose: () => send({ type: 'close' }),
+      verifyPin: (pin) =>
+        new Promise((resolve) => {
+          try {
+            chrome.runtime.sendMessage({ type: 'verifyPin', pin: String(pin || '') }, (r) => resolve(!chrome.runtime.lastError && !!(r && r.ok)));
+          } catch (_) {
+            resolve(false);
+          }
+        }),
       onUnlock: (minutes) => {
         const until = Date.now() + minutes * 60000;
         for (const id of ids) snoozes[id] = until;
@@ -185,6 +215,39 @@
   }
 
   /* ───────────── time tracking ───────────── */
+
+  // Two visible tabs of the same site must not count the same section twice:
+  // visible tabs announce what they count, the tab with the smallest id wins.
+  const TAB_ID = Math.random().toString(36).slice(2);
+  const peers = new Map(); // tabId -> { ids:Set, at }
+  let channel = null;
+  try {
+    channel = new BroadcastChannel('dopablock-track');
+    channel.onmessage = (e) => {
+      const m = e.data;
+      if (m && m.id && m.id !== TAB_ID && Array.isArray(m.ids)) peers.set(m.id, { ids: new Set(m.ids), at: Date.now() });
+    };
+  } catch (_) {
+    channel = null;
+  }
+  let lastBroadcast = 0;
+  function broadcast(ids) {
+    if (!channel) return;
+    const now = Date.now();
+    if (now - lastBroadcast < 1000) return;
+    lastBroadcast = now;
+    try {
+      channel.postMessage({ id: TAB_ID, ids });
+    } catch (_) {}
+  }
+  function canCount(ruleId) {
+    const now = Date.now();
+    for (const [id, p] of peers) {
+      if (now - p.at > 2500) peers.delete(id);
+      else if (p.ids.has(ruleId) && id < TAB_ID) return false;
+    }
+    return true;
+  }
 
   function flush() {
     if (!pendingTotal) return;
@@ -213,13 +276,19 @@
     }
 
     if (overlay) {
+      if (pendingTotal) flush(); // persist the seconds that tipped us over the limit
       pauseMedia();
+      setInert(!!config && config.settings.blockStyle !== 'solid'); // <body> may have appeared meanwhile
       return;
     }
 
     if (document.visibilityState === 'visible' && current && current.track.length) {
-      for (const id of current.track) pending[id] = (pending[id] || 0) + dt;
-      pendingTotal += dt;
+      broadcast(current.track);
+      const mine = current.track.filter(canCount);
+      if (mine.length) {
+        for (const id of mine) pending[id] = (pending[id] || 0) + dt;
+        pendingTotal += dt;
+      }
       sinceFlush += dt * 1000;
       sinceEval += dt * 1000;
       if (sinceEval >= 1000) {
@@ -250,7 +319,7 @@
     if (observer) observer.disconnect();
     if (overlay) overlay.destroy();
     overlay = null;
-    setPageHidden(false);
+    setPageLocked(false);
     const s = document.getElementById(HIDE_STYLE_ID);
     if (s) s.remove();
   }
@@ -276,11 +345,19 @@
   });
   window.addEventListener('pagehide', flush);
   window.addEventListener('popstate', () => apply(false));
+  // a blocked page must stay silent even if the site calls play() again
+  document.addEventListener(
+    'play',
+    (e) => {
+      if (overlay && e.target && e.target.pause) e.target.pause();
+    },
+    true
+  );
 
   // keep the overlay alive if the page tears down documentElement children
   observer = new MutationObserver(() => {
     if (overlay && !overlay.host.isConnected) (document.documentElement || document).append(overlay.host);
-    if (overlay && !document.getElementById(BLOCK_STYLE_ID)) setPageHidden(true);
+    if (overlay && !document.getElementById(BLOCK_STYLE_ID)) setPageLocked(true);
   });
   observer.observe(document, { childList: true });
   const startObserving = () => {

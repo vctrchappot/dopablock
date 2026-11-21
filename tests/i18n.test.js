@@ -23,7 +23,8 @@ test('every t("key") used in the code exists', () => {
   const used = new Set();
   for (const f of files) {
     const src = fs.readFileSync(f, 'utf8');
-    for (const m of src.matchAll(/\bt\('([a-zA-Z0-9_.]+)'\s*[,)]/g)) used.add(m[1]);
+    // every quoted literal that looks like a dictionary key (also catches ternaries like t(a ? 'x.y' : 'x.z'))
+    for (const m of src.matchAll(/'((?:block|pin|set|ov|popup|nav|rules|edit|row|mode|day|sched)\.[a-zA-Z0-9_.]+)'/g)) used.add(m[1]);
   }
   // keys built dynamically in the UI
   for (const m of ['off', 'track', 'limit', 'block']) used.add('mode.' + m);

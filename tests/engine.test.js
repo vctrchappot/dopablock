@@ -128,3 +128,38 @@ test('pattern syntax', () => {
   assert.ok(m('/a', '/a/'));
   assert.ok(m('re:^/x/\\d+$', '/x/12'));
 });
+
+test('focus session blocks every active rule, ignores schedule, snooze and pause', () => {
+  const rules = rulesWith({ 'youtube:shorts': { mode: 'track' }, 'tiktok:all': { mode: 'limit', limitMin: 999, schedule: { days: [1], start: '09:00', end: '10:00' } }, 'x:all': { mode: 'off' } });
+  const now = new Date(2026, 10, 18, 22, 0).getTime(); // Wed night, outside the schedule
+  const settings = { focusUntil: now + 60000, pausedUntil: now + 60000 };
+  const snoozes = { 'tiktok:all': now + 60000 };
+  const a = ev(rules, 'https://www.youtube.com/shorts/a', { settings, snoozes }, now);
+  assert.equal(a.blocked.reason, 'focus');
+  assert.equal(a.blocked.focusUntil, settings.focusUntil);
+  assert.equal(ev(rules, 'https://tiktok.com/', { settings, snoozes }, now).blocked.reason, 'focus');
+  assert.equal(ev(rules, 'https://x.com/home', { settings, snoozes }, now).blocked, null, 'rules set to off stay off');
+  assert.equal(ev(rules, 'https://www.youtube.com/shorts/a', { settings: { focusUntil: now - 1 } }, now).blocked, null, 'expired focus');
+});
+
+test('streak counts days at or under the goal, ending today', () => {
+  const d = (n) => { const x = new Date(2026, 10, 20); x.setDate(x.getDate() - n); return DB.dayKey(x); };
+  const usage = { [d(4)]: { total: 600 }, [d(3)]: { total: 7200 }, [d(2)]: { total: 600 }, [d(1)]: { total: 1200 } };
+  const now = new Date(2026, 10, 20, 12).getTime();
+  assert.equal(DB.streak(usage, 30, now), 3, 'today has no record yet (counts as fine), d1 ok, d2 ok, d3 over');
+  usage[d(0)] = { total: 3600 };
+  assert.equal(DB.streak(usage, 30, now), 0, 'today already over the goal');
+  assert.equal(DB.streak(usage, 0, now), 0, 'goal off');
+  assert.equal(DB.streak({}, 30, now), 0);
+});
+
+test('PIN hashing verifies only the right PIN', async () => {
+  const s = { pinHash: '', pinSalt: '' };
+  assert.equal(await DB.verifyPin(s, 'anything'), true, 'no PIN set → always ok');
+  await DB.setPin(s, '1234');
+  assert.ok(s.pinHash && s.pinSalt);
+  assert.equal(await DB.verifyPin(s, '1234'), true);
+  assert.equal(await DB.verifyPin(s, '1235'), false);
+  await DB.setPin(s, '');
+  assert.equal(s.pinHash, '');
+});

@@ -2,7 +2,7 @@
 
 # Dopablock
 
-Screen-Time-Kontrolle für Chrome: Webseiten **und einzelne Bereiche** davon messen, begrenzen oder sperren – z. B. nur den TikTok-FYP, Instagram Reels, YouTube Shorts oder Snapchat Spotlight. Alles läuft lokal, es werden keine Daten gesendet.
+Screen-Time-Kontrolle für Chrome: Webseiten **und einzelne Bereiche** davon messen, begrenzen oder sperren – z. B. nur den TikTok-FYP, Instagram Reels, YouTube Shorts oder Snapchat Spotlight. Alles läuft lokal, es werden keine Daten gesendet (siehe [PRIVACY.md](PRIVACY.md)).
 
 ## Installieren
 
@@ -10,7 +10,7 @@ Screen-Time-Kontrolle für Chrome: Webseiten **und einzelne Bereiche** davon mes
 2. **Entpackte Erweiterung laden** → diesen Ordner (`dopablock`) auswählen.
 3. Beim ersten Start öffnet sich die Übersicht. Unter **Regeln** pro Bereich *Messen*, *Limit* oder *Sperren* wählen.
 
-Funktioniert in Chrome ab Version 110 sowie Edge/Brave und anderen Chromium-Browsern. Es gibt keinen Build-Schritt.
+Chrome ab Version 110 (auch Edge/Brave und andere Chromium-Browser). Kein Build-Schritt. Firefox wird nicht unterstützt.
 
 ## Funktionen
 
@@ -20,11 +20,14 @@ Funktioniert in Chrome ab Version 110 sowie Edge/Brave und anderen Chromium-Brow
 | **Limit** | Tagesbudget in Minuten; danach ist der Bereich bis Mitternacht gesperrt. |
 | **Sperren** | Bereich ist immer zu. |
 
-- **Bereiche statt ganzer Seiten:** vorgefertigte Regeln für TikTok (FYP, Following, Explore, LIVE, Einzelvideos), Instagram (Reels, Feed, Explore, Stories), YouTube (Shorts inkl. Regalen/Tab, Startseite, Vorschläge, Kommentare), Snapchat (Spotlight, Discover), Facebook, X, Reddit, LinkedIn, Twitch, Netflix.
+- **Bereiche statt ganzer Seiten:** Regeln für TikTok (FYP, Following, Explore, LIVE, Einzelvideos), Instagram (Reels, Feed, Explore, Stories), YouTube (Shorts inkl. Regalen/Tab, Startseite, Vorschläge, Kommentare), Snapchat, Facebook, X, Reddit, LinkedIn, Threads, Bluesky, Pinterest, Twitch, Netflix, Discord.
+- **Gesperrt = unscharf:** Die Seite bleibt hinter einer Glas-Karte sichtbar, aber unscharf, eingefroren und stumm. Alternativ „Einfarbig“ in den Einstellungen.
 - **Eigene Regeln** für beliebige Seiten und Unterseiten, mit Ausnahmen und optionalen CSS-Selektoren zum Ausblenden von Elementen.
-- **Zeitpläne** pro Regel (Tage + Uhrzeit, auch über Mitternacht), z. B. „Mo–Fr 09:00–17:00“.
-- **Selbstkontrolle:** Overrides erst nach einer „Durchatmen“-Wartezeit, globale Pause (5–60 Min.), *Strikter Modus* ohne Overrides.
-- **Übersicht** mit Tageszeit pro Stunde, letzten 7 Tagen und den größten Zeitfressern; Zeit der Erweiterung im Toolbar-Badge.
+- **Zeitpläne** pro Regel (Tage + Uhrzeit, auch über Mitternacht).
+- **Fokus-Sessions** (25/50/90 Min.): Alle aktiven Regeln sind hart gesperrt, ohne Ausnahmen, unabhängig von Zeitplan und Pause.
+- **Selbstkontrolle:** „Durchatmen“-Wartezeit vor Ausnahmen, globale Pause, *Strikter Modus*, optionale **PIN** (für Ausnahmen, Pause, Lockern von Regeln, Fokus beenden und die Einstellungen).
+- **Statistik:** Tageszeit pro Stunde, 7-Tage-Verlauf mit Vorwochenvergleich, größte Zeitfresser, **Tagesziel mit Serie**, Zeit im Toolbar-Badge.
+- **Sync (optional):** Regeln und Einstellungen über das Browser-Konto; Bildschirmzeit, Pause und Fokus bleiben lokal.
 - Hell/Dunkel, Deutsch/Englisch, Backup-Export/-Import.
 
 ### Seitenmuster (eigene Regeln)
@@ -41,24 +44,33 @@ Domains schließen Subdomains ein (`youtube.com` → `m.youtube.com`).
 
 ## Grenzen
 
-- Das ist ein Selbstkontroll-Werkzeug, kein Kinderschutz: Wer die Erweiterung deaktiviert oder einen anderen Browser nutzt, umgeht sie.
-- Die Sperre ist ein Overlay mit pausierten Medien. Die Seite lädt im Hintergrund weiter.
-- Die Selektoren für ausgeblendete Elemente (z. B. YouTube-Shorts-Regale) hängen vom Seitenaufbau ab; große Plattformen ändern den gelegentlich. Die Pfad-Sperren sind davon unabhängig.
-- Die Erweiterung braucht Zugriff auf alle Webseiten, weil sie die aktuelle Adresse mit deinen Regeln vergleicht und bei Treffern eingreift.
+- Selbstkontroll-Werkzeug, kein Kinderschutz: Wer die Erweiterung deaktiviert oder einen anderen Browser nutzt, umgeht sie. Auch die PIN ist eine Bremse gegen Impulse, keine Sicherheit.
+- Die Seite lädt im Hintergrund weiter. Beim Laden ist sie für einen kurzen Moment sichtbar, bevor das Overlay erscheint (die Regeln werden asynchron aus dem Speicher gelesen).
+- Die Selektoren fürs Ausblenden (z. B. YouTube-Shorts-Regale) hängen vom Seitenaufbau ab, den die Plattformen gelegentlich ändern. Die Pfad-Sperren sind davon unabhängig.
+- Die E2E-Tests laufen gegen kontrollierte Fake-Seiten unter den echten Hostnamen. Dass die Pfadmuster auch zu den *aktuellen* echten Seiten passen, muss man gelegentlich im Browser gegenprüfen.
+- Die Erweiterung braucht Zugriff auf alle Webseiten, um die Adresse lokal mit deinen Regeln zu vergleichen.
 
 ## Entwicklung
 
 ```
 manifest.json          Manifest V3
-src/lib/               presets.js (Katalog) · engine.js (Matching, Limits, Zeitpläne) · i18n.js
-src/content/           content.js (Zeiterfassung, Ausblenden) · overlay.js (Sperrseite)
-src/background.js      Service Worker (Nutzungsdaten, Overrides, Badge)
+src/lib/               presets.js (Katalog) · engine.js (Matching, Limits, Zeitpläne, Fokus, PIN) · i18n.js
+src/content/           content.js (Zeiterfassung, Ausblenden) · overlay.js (Sperr-Karte)
+src/background.js      Service Worker (Nutzungsdaten, Overrides, PIN-Check, Sync, Badge)
 src/popup/, src/options/, src/ui/   Oberfläche
-tools/make-icons.js    erzeugt icons/*.png ohne Abhängigkeiten
+tests/                 Unit-Tests (node:test)
+e2e/                   Browser-Tests (Playwright, lädt die echte Erweiterung)
+tools/                 make-icons.js · pack.js (ZIP für den Store) · screenshots.js
+store/                 Listing-Text und Screenshots
 ```
 
-Tests (Node ≥ 20, keine Abhängigkeiten):
+```
+npm install
+npm test                 # Unit-Tests
+npx playwright install chromium
+npm run test:e2e         # Browser-Tests mit geladener Erweiterung
+npm run pack             # dist/dopablock-<version>.zip
+npm run screenshots      # store/screenshots/*.png
+```
 
-```
-node --test "tests/*.test.js"
-```
+CI läuft über die gemeinsame Pipeline `vctrchappot/ci` (`.github/workflows/ci.yml`, Ergebnis `ci / check`).

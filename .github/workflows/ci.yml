@@ -1,0 +1,32 @@
+name: CI
+
+# Thin caller: the logic lives in vctrchappot/ci. Edit the commands below or .github/ci.json, not the shared workflow.
+# The result to require on a branch is `ci / check`.
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    types: [opened, synchronize, reopened, ready_for_review]
+
+permissions:
+  contents: read
+  checks: read
+  pull-requests: read
+  statuses: write
+
+# A newer push cancels the older run of the same pull request. Every push to the default branch has its own group and
+# runs to the end, so each commit gets a real `ci / check` result and the verified-tree skip can rely on it.
+concurrency:
+  group: ci-${{ github.workflow }}-${{ github.event_name == 'pull_request' && github.ref || github.sha }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
+jobs:
+  ci:
+    uses: vctrchappot/ci/.github/workflows/node-app.yml@v1
+    with:
+      default-branch: main
+      verify: |
+        npm run test
+        npx playwright install --with-deps chromium
+        npm run test:e2e

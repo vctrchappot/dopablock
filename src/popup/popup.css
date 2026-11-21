@@ -244,3 +244,57 @@ body {
   text-align: left;
   line-height: 1.25;
 }
+
+.pausebtn.focus {
+  background: var(--purple-bg);
+  color: var(--purple-fg);
+  border-color: transparent;
+}
+.menu .label + button,
+.menu button + .label {
+  margin-top: 0;
+}
+.menu .label:not(:first-child) {
+  margin-top: 6px;
+  border-top: 1px dashed var(--line-strong);
+  padding-top: 10px;
+}
+
+.pinmodal {
+  position: fixed;
+  inset: 0;
+  z-index: 30;
+  display: grid;
+  place-items: center;
+  padding: 20px;
+  background: rgba(10, 10, 10, 0.35);
+  backdrop-filter: blur(6px);
+  animation: pop 0.18s ease;
+}
+.pincard {
+  width: 100%;
+  padding: 18px;
+  display: grid;
+  gap: 12px;
+}
+.pintitle {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-weight: 650;
+}
+.input.pin {
+  text-align: center;
+  letter-spacing: 0.35em;
+  font-size: 18px;
+}
+.pinbtns {
+  display: flex;
+  gap: 8px;
+  justify-content: flex-end;
+}
+.err {
+  color: var(--red-fg);
+  font-size: 13px;
+  min-height: 0;
+}

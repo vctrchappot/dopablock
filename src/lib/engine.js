@@ -16,10 +16,15 @@
   const DEFAULT_SETTINGS = {
     language: 'auto', // auto | en | de
     theme: 'system', // system | light | dark
+    blockStyle: 'blur', // blur = blurred page behind the card | solid = plain screen
     friction: 10, // seconds of "breathing" before an override is granted
     snoozeMinutes: 5, // length of an override
     strict: false, // no overrides, no pause
     pausedUntil: 0,
+    focusUntil: 0, // focus session: every active rule is a hard block until then
+    dailyGoalMin: 0, // 0 = no goal; otherwise minutes/day for the streak
+    pinHash: '',
+    pinSalt: '',
   };
 
   const DEFAULT_PRESET_STATE = { mode: 'off', limitMin: 30, schedule: null };
@@ -181,6 +186,7 @@
 
     const settings = Object.assign({}, DEFAULT_SETTINGS, ctx.settings || {});
     const paused = settings.pausedUntil > now;
+    const focus = settings.focusUntil > now;
     const usage = ctx.usage || {};
     const snoozes = ctx.snoozes || {};
     const date = new Date(now);
@@ -196,19 +202,19 @@
       const used = usage[rule.id] || 0;
       const limit = rule.limitMin * 60;
       const limitHit = rule.mode === 'limit' && used >= limit;
-      const inForce = !paused && scheduled && !snoozed && (rule.mode === 'block' || limitHit);
+      const inForce = focus || (!paused && scheduled && !snoozed && (rule.mode === 'block' || limitHit));
 
       if (inForce) for (const sel of rule.hide) out.hide.push(sel);
 
       if (pathMatches(url.pathname, rule.paths, rule.exclude)) {
         out.matched.push(rule);
-        if (inForce) candidates.push({ rule, reason: rule.mode === 'block' ? 'block' : 'limit', used, limit });
+        if (inForce) candidates.push({ rule, reason: focus ? 'focus' : rule.mode === 'block' ? 'block' : 'limit', used, limit, focusUntil: focus ? settings.focusUntil : 0 });
         else out.track.push(rule.id);
       }
     }
 
     if (candidates.length) {
-      out.blocked = candidates.find((c) => c.reason === 'block') || candidates[0];
+      out.blocked = candidates.find((c) => c.reason === 'focus') || candidates.find((c) => c.reason === 'block') || candidates[0];
       out.blockers = candidates.map((c) => c.rule.id); // an override must lift all of them
       out.track = []; // the page is not shown → nothing to count
     }
@@ -256,6 +262,7 @@
   }
 
   async function saveConfig(config) {
+    config.rev = Date.now();
     await chrome.storage.local.set({ config });
   }
 
@@ -268,6 +275,46 @@
       config.presets[rule.id] = Object.assign({}, DEFAULT_PRESET_STATE, config.presets[rule.id] || {}, patch);
     }
     return config;
+  }
+
+  /* ───────────── PIN (self-control, not security) ───────────── */
+
+  async function hashPin(pin, salt) {
+    const data = new TextEncoder().encode(String(salt) + ':' + String(pin));
+    const buf = await crypto.subtle.digest('SHA-256', data);
+    return Array.from(new Uint8Array(buf)).map((b) => b.toString(16).padStart(2, '0')).join('');
+  }
+
+  async function verifyPin(settings, pin) {
+    if (!settings.pinHash) return true;
+    return (await hashPin(pin, settings.pinSalt)) === settings.pinHash;
+  }
+
+  async function setPin(settings, pin) {
+    if (!pin) {
+      settings.pinHash = '';
+      settings.pinSalt = '';
+      return;
+    }
+    settings.pinSalt = uid();
+    settings.pinHash = await hashPin(pin, settings.pinSalt);
+  }
+
+  /** Consecutive days (ending today) with tracked time <= goal. Days before the first record don't count. */
+  function streak(usage, goalMin, now) {
+    if (!goalMin) return 0;
+    const keys = Object.keys(usage).sort();
+    if (!keys.length) return 0;
+    const goal = goalMin * 60;
+    const d = new Date(now || Date.now());
+    let n = 0;
+    while (dayKey(d) >= keys[0] && n < 365) {
+      const total = (usage[dayKey(d)] || {}).total || 0;
+      if (total > goal) break;
+      n++;
+      d.setDate(d.getDate() - 1);
+    }
+    return n;
   }
 
   function uid() {
@@ -291,6 +338,10 @@
     loadAll,
     saveConfig,
     patchRule,
+    hashPin,
+    verifyPin,
+    setPin,
+    streak,
     uid,
   };
   Object.assign(DB, api);

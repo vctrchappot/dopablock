@@ -22,7 +22,11 @@
     await DB.saveConfig(state.config);
   }
 
+  const STRICTNESS = { off: 0, track: 1, limit: 2, block: 3 };
+
+  /** With a PIN set, loosening a rule needs the PIN. */
   async function setMode(rule, mode) {
+    if (STRICTNESS[mode] < STRICTNESS[rule.mode] && !(await guard())) return render();
     DB.patchRule(state.config, rule, { mode });
     await save();
   }
@@ -32,9 +36,55 @@
     await save();
   }
 
+  /* ───────────── pin ───────────── */
+
+  function pinPrompt() {
+    return new Promise((resolve) => {
+      const input = h('input', { class: 'input pin', type: 'password', inputmode: 'numeric', autocomplete: 'off', placeholder: t('pin.enter'), 'aria-label': t('pin.enter') });
+      const err = h('div', { class: 'err' });
+      let box;
+      const close = (v) => {
+        box.remove();
+        resolve(v);
+      };
+      const submit = async () => {
+        if (await DB.verifyPin(state.config.settings, input.value)) close(true);
+        else {
+          err.textContent = t('pin.wrong');
+          input.value = '';
+          input.focus();
+        }
+      };
+      input.addEventListener('keydown', (e) => {
+        e.stopPropagation();
+        if (e.key === 'Enter') submit();
+        if (e.key === 'Escape') close(false);
+      });
+      box = h(
+        'div',
+        { class: 'pinmodal', onclick: (e) => e.target === box && close(false) },
+        h(
+          'div',
+          { class: 'card pincard' },
+          h('div', { class: 'pintitle' }, icon('lock', 18), t('pin.enter')),
+          input,
+          err,
+          h('div', { class: 'pinbtns' }, h('button', { class: 'btn', onclick: () => close(false) }, t('edit.cancel')), h('button', { class: 'btn primary', onclick: submit }, t('pin.unlock')))
+        )
+      );
+      document.body.append(box);
+      input.focus();
+    });
+  }
+
+  const guard = async () => !state.config.settings.pinHash || (await pinPrompt());
+
+  /* ───────────── pause & focus ───────────── */
+
   async function pauseFor(minutes) {
-    state.config.settings.pausedUntil = Date.now() + minutes * 60000;
     menuOpen = false;
+    if (!(await guard())) return render();
+    state.config.settings.pausedUntil = Date.now() + minutes * 60000;
     await save();
   }
 
@@ -43,76 +93,109 @@
     await save();
   }
 
-  /* ───────────── pieces ───────────── */
+  async function startFocus(minutes) {
+    menuOpen = false;
+    state.config.settings.focusUntil = Date.now() + minutes * 60000;
+    state.config.settings.pausedUntil = 0;
+    await save();
+  }
+
+  async function endFocus() {
+    menuOpen = false;
+    if (!(await guard())) return render();
+    state.config.settings.focusUntil = 0;
+    await save();
+  }
 
   function remaining(ms) {
-    const s = Math.max(0, Math.ceil(ms / 1000));
-    return Math.floor(s / 60) + ':' + String(s % 60).padStart(2, '0');
+    const sec = Math.max(0, Math.ceil(ms / 1000));
+    return Math.floor(sec / 60) + ':' + String(sec % 60).padStart(2, '0');
   }
 
-  function pauseControl() {
-    const s = state.config.settings;
-    const now = Date.now();
-    if (s.pausedUntil > now) {
-      const label = h('span', { class: 'num', 'data-pause-label': '' }, t('popup.paused', { t: remaining(s.pausedUntil - now) }));
-      return h('button', { class: 'btn pausebtn on', onclick: resume, title: t('popup.resume') }, icon('play', 15), label);
-    }
-    if (s.strict) {
-      return h('button', { class: 'btn pausebtn', disabled: true, title: t('popup.strictNoPause') }, icon('lock', 15), t('popup.pause'));
-    }
-    const btn = h(
-      'button',
-      {
-        class: 'btn pausebtn',
-        'aria-haspopup': 'true',
-        'aria-expanded': String(menuOpen),
-        onclick: (e) => {
-          e.stopPropagation();
-          menuOpen = !menuOpen;
-          countdown = null;
-          render();
-        },
-      },
-      icon('pause', 15),
-      t('popup.pause')
-    );
-    if (!menuOpen) return btn;
-    const items = [5, 15, 30, 60].map((m) => {
-      const waiting = countdown && countdown.minutes === m;
-      return h(
-        'button',
-        {
-          class: waiting ? 'wait' : '',
-          onclick: (e) => {
-            e.stopPropagation();
-            startCountdown(m);
-          },
-        },
-        waiting ? t('popup.pauseConfirm', { s: countdown.left }) : t('popup.min', { n: m })
-      );
-    });
-    return h('div', { style: { position: 'relative' } }, btn, h('div', { class: 'menu', onclick: (e) => e.stopPropagation() }, h('div', { class: 'label' }, t('popup.pauseFor')), items));
-  }
-
-  function startCountdown(minutes) {
+  function startCountdown(key, done) {
     if (countdown) clearInterval(countdown.timer);
     const secs = Math.max(0, state.config.settings.friction | 0);
-    if (!secs) return pauseFor(minutes);
-    countdown = { minutes, left: secs };
+    if (!secs) return done();
+    countdown = { key, left: secs };
     countdown.timer = setInterval(() => {
       countdown.left -= 1;
       if (countdown.left <= 0) {
         clearInterval(countdown.timer);
         countdown = null;
-        pauseFor(minutes);
+        done();
       } else render();
     }, 1000);
     render();
   }
 
+  function closeMenu() {
+    menuOpen = false;
+    if (countdown) clearInterval(countdown.timer);
+    countdown = null;
+  }
+
+  function menuItem(key, label, onClick) {
+    const waiting = countdown && countdown.key === key;
+    return h(
+      'button',
+      {
+        class: waiting ? 'wait' : '',
+        onclick: (e) => {
+          e.stopPropagation();
+          onClick();
+        },
+      },
+      waiting ? t('popup.pauseConfirm', { s: countdown.left }) : label
+    );
+  }
+
+  function pauseControl() {
+    const s = state.config.settings;
+    const now = Date.now();
+    const toggle = (e) => {
+      e.stopPropagation();
+      const was = menuOpen;
+      closeMenu();
+      menuOpen = !was;
+      render();
+    };
+    const wrap = (btn, items) =>
+      menuOpen ? h('div', { style: { position: 'relative' } }, btn, h('div', { class: 'menu', onclick: (e) => e.stopPropagation() }, items)) : btn;
+
+    if (s.focusUntil > now) {
+      const btn = h(
+        'button',
+        { class: 'btn pausebtn focus', 'aria-haspopup': 'true', 'aria-expanded': String(menuOpen), onclick: toggle },
+        icon('moon', 15),
+        h('span', { class: 'num', 'data-focus-label': '' }, t('popup.focusing', { t: remaining(s.focusUntil - now) }))
+      );
+      return wrap(btn, [menuItem('end', t('popup.focusEnd'), () => startCountdown('end', endFocus))]);
+    }
+    if (s.pausedUntil > now) {
+      return h(
+        'button',
+        { class: 'btn pausebtn on', onclick: resume, title: t('popup.resume') },
+        icon('play', 15),
+        h('span', { class: 'num', 'data-pause-label': '' }, t('popup.paused', { t: remaining(s.pausedUntil - now) }))
+      );
+    }
+    const btn = h('button', { class: 'btn pausebtn', 'aria-haspopup': 'true', 'aria-expanded': String(menuOpen), onclick: toggle }, icon('pause', 15), t('popup.pause'), icon('chevron', 14));
+    const items = [];
+    if (!s.strict) {
+      items.push(h('div', { class: 'label' }, t('popup.pauseFor')));
+      for (const m of [5, 15, 30, 60]) items.push(menuItem('p' + m, t('popup.min', { n: m }), () => startCountdown('p' + m, () => pauseFor(m))));
+    } else {
+      items.push(h('div', { class: 'label' }, t('popup.strictNoPause')));
+    }
+    items.push(h('div', { class: 'label' }, t('popup.focusFor')));
+    for (const m of [25, 50, 90]) items.push(menuItem('f' + m, t('popup.min', { n: m }), () => startFocus(m)));
+    return wrap(btn, items);
+  }
+
   function hero(day) {
     const s = state.config.settings;
     const paused = s.pausedUntil > Date.now();
+    const focus = s.focusUntil > Date.now();
     const total = day.total || 0;
     const { h: hh, m: mm } = DB.fmtDuration(total, { parts: true });
     let num;
@@ -135,7 +218,7 @@
         'div',
         { class: 'hero-top' },
         h('span', { class: 'hero-label' }, h('i'), t('popup.screenTime')),
-        h('span', { class: 'tag ' + (paused ? 'tone-orange' : 'tone-green') }, paused ? t('popup.pausedTag') : t('popup.protectedTag'))
+        h('span', { class: 'tag ' + (focus ? 'tone-purple' : paused ? 'tone-orange' : 'tone-green') }, focus ? t('popup.focusTag') : paused ? t('popup.pausedTag') : t('popup.protectedTag'))
       ),
       h('div', { class: 'hero-num' }, num),
       h('div', { class: 'hairline', role: 'img', 'aria-label': t('ov.hourly') }, bars),
@@ -240,35 +323,36 @@
       h('div', { class: 'foot' }, h('button', { class: 'btn primary block', onclick: () => chrome.runtime.openOptionsPage() }, t('popup.manage'), icon('arrowRight', 16)))
     );
 
-    // live countdown for "paused"
+    // live countdown for pause / focus
     clearInterval(ticker);
-    if (state.config.settings.pausedUntil > Date.now()) {
+    const st = state.config.settings;
+    if (st.pausedUntil > Date.now() || st.focusUntil > Date.now()) {
       ticker = setInterval(() => {
-        const left = state.config.settings.pausedUntil - Date.now();
-        if (left <= 0) {
+        const n = Date.now();
+        const p = state.config.settings.pausedUntil - n;
+        const f = state.config.settings.focusUntil - n;
+        const pl = app.querySelector('[data-pause-label]');
+        const fl = app.querySelector('[data-focus-label]');
+        if ((pl && p <= 0) || (fl && f <= 0)) {
           clearInterval(ticker);
           render();
           return;
         }
-        const el = app.querySelector('[data-pause-label]');
-        if (el) el.textContent = t('popup.paused', { t: remaining(left) });
+        if (pl) pl.textContent = t('popup.paused', { t: remaining(p) });
+        if (fl) fl.textContent = t('popup.focusing', { t: remaining(f) });
       }, 1000);
     }
   }
 
   document.addEventListener('click', () => {
     if (menuOpen) {
-      menuOpen = false;
-      if (countdown) clearInterval(countdown.timer);
-      countdown = null;
+      closeMenu();
       render();
     }
   });
   document.addEventListener('keydown', (e) => {
     if (e.key === 'Escape' && menuOpen) {
-      menuOpen = false;
-      if (countdown) clearInterval(countdown.timer);
-      countdown = null;
+      closeMenu();
       render();
     }
   });

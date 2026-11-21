@@ -17,6 +17,9 @@
 
   async function reload() {
     state = await DB.loadAll();
+    const extra = await chrome.storage.local.get(['syncEnabled', 'syncError']);
+    state.syncEnabled = !!extra.syncEnabled;
+    state.syncError = extra.syncError || '';
     DB.applyAppearance(state.config.settings);
     document.title = 'Dopablock – ' + t('nav.' + view);
     render();
@@ -62,6 +65,8 @@
     const active = rules.filter((r) => r.mode !== 'off').length;
     const s = state.config.settings;
     const paused = s.pausedUntil > Date.now();
+    const focus = s.focusUntil > Date.now();
+    const focusLeft = Math.max(0, Math.ceil((s.focusUntil - Date.now()) / 60000));
     const left = Math.max(0, Math.ceil((s.pausedUntil - Date.now()) / 60000));
 
     const nav = [
@@ -90,8 +95,8 @@
       h('nav', { class: 'nav' }, nav),
       h(
         'div',
-        { class: 'side-status' + (paused ? ' paused' : '') },
-        h('div', { class: 'st' }, h('i'), paused ? t('nav.status.paused', { t: left + ' min' }) : t('nav.status.active')),
+        { class: 'side-status' + (focus ? ' focus' : paused ? ' paused' : '') },
+        h('div', { class: 'st' }, h('i'), focus ? t('nav.status.focus', { t: focusLeft + ' min' }) : paused ? t('nav.status.paused', { t: left + ' min' }) : t('nav.status.active')),
         h('small', null, t('nav.status.activeRules', { n: active })),
         paused
           ? h(
@@ -126,7 +131,7 @@
     const nowH = new Date().getHours();
     return day.hours.map((v, i) => {
       const b = h('b', { class: (v ? '' : 'zero ') + (i === nowH ? 'now' : ''), title: v ? i + ':00 · ' + DB.fmtDuration(v) : i + ':00' });
-      if (v) b.style.setProperty('--h', Math.max(6, (v / max) * 96) + 'px');
+      if (v) b.style.setProperty('--h', Math.max(6, (v / max) * 100) + '%');
       return b;
     });
   }
@@ -154,6 +159,16 @@
     const weekTotal = days.reduce((a, b) => a + b.total, 0);
     const weekMax = Math.max(60, ...days.map((d) => d.total));
     const avg = weekTotal / 7;
+    let prevWeek = 0;
+    for (let i = 13; i >= 7; i--) {
+      const d = new Date();
+      d.setDate(d.getDate() - i);
+      const u = state.usage[DB.dayKey(d)];
+      prevWeek += (u && u.total) || 0;
+    }
+    const delta = prevWeek ? Math.round(((weekTotal - prevWeek) / prevWeek) * 100) : null;
+    const goal = state.config.settings.dailyGoalMin | 0;
+    const streakN = DB.streak(state.usage, goal);
 
     const week = h(
       'div',
@@ -226,12 +241,27 @@
           'div',
           { style: { display: 'grid', gap: '18px' } },
           h('section', { class: 'card stat' }, h('span', { class: 'label' }, t('ov.blocks')), h('div', { class: 'value' }, String(day.blocks || 0)), h('div', { class: 'hint' }, t('ov.blocksHint'))),
-          h('section', { class: 'card stat' }, h('span', { class: 'label' }, t('ov.active')), h('div', { class: 'value' }, String(activeCount)), h('div', { class: 'hint' }, t('ov.activeHint')))
+          h('section', { class: 'card stat' }, h('span', { class: 'label' }, t('ov.active')), h('div', { class: 'value' }, String(activeCount)), h('div', { class: 'hint' }, t('ov.activeHint'))),
+          goal
+            ? h(
+                'section',
+                { class: 'card stat' },
+                h('span', { class: 'label' }, t('ov.streak')),
+                h('div', { class: 'value' }, String(streakN), h('small', null, t('ov.days'))),
+                h('div', { class: 'hint' }, t('ov.streakHint', { m: goal }))
+              )
+            : null
         ),
         h(
           'section',
           { class: 'card panel span2' },
-          h('div', { class: 'panel-head' }, h('h2', null, t('ov.week')), h('span', { class: 'tag tone-blue' }, t('ov.weekTotal', { t: DB.fmtDuration(weekTotal) }))),
+          h('div', { class: 'panel-head' }, h('h2', null, t('ov.week')), h(
+              'div',
+              { style: { display: 'flex', gap: '8px', flexWrap: 'wrap' } },
+              delta !== null ? h('span', { class: 'tag ' + (delta <= 0 ? 'tone-green' : 'tone-red') }, t('ov.vsLast', { p: (delta > 0 ? '+' : '') + delta })) : null,
+              h('span', { class: 'tag tone-blue' }, t('ov.weekTotal', { t: DB.fmtDuration(weekTotal) }))
+            )
+          ),
           week
         ),
         h('section', { class: 'card panel' }, h('div', { class: 'panel-head' }, h('h2', null, t('ov.top'))), topList)
@@ -599,6 +629,114 @@
 
   /* ───────────── settings ───────────── */
 
+  let pinForm = null; // 'set' | 'change' | 'remove' | null
+
+  const sessionUnlocked = () => {
+    try {
+      return sessionStorage.getItem('dopa-unlocked') === '1';
+    } catch (_) {
+      return false;
+    }
+  };
+  const markUnlocked = () => {
+    try {
+      sessionStorage.setItem('dopa-unlocked', '1');
+    } catch (_) {}
+  };
+
+  function pinSection() {
+    const s = state.config.settings;
+    const has = !!s.pinHash;
+    if (!pinForm) {
+      return h(
+        'div',
+        { class: 'btnrow' },
+        has
+          ? [
+              h('button', { class: 'btn', onclick: () => ((pinForm = 'change'), render()) }, icon('lock', 16), t('set.pinChange')),
+              h('button', { class: 'btn danger', onclick: () => ((pinForm = 'remove'), render()) }, t('set.pinRemove')),
+            ]
+          : h('button', { class: 'btn', onclick: () => ((pinForm = 'set'), render()) }, icon('lock', 16), t('set.pinSet'))
+      );
+    }
+    const mkInput = (ph) => h('input', { class: 'input', type: 'password', inputmode: 'numeric', autocomplete: 'off', placeholder: ph, 'aria-label': ph, style: { maxWidth: '220px' } });
+    const cur = has ? mkInput(t('pin.current')) : null;
+    const nw = pinForm !== 'remove' ? mkInput(t('pin.new')) : null;
+    const err = h('div', { class: 'err', hidden: true });
+    const fail = (m) => {
+      err.textContent = m;
+      err.hidden = false;
+    };
+    const submit = async () => {
+      if (has && !(await DB.verifyPin(s, cur.value))) return fail(t('pin.wrong'));
+      if (pinForm === 'remove') {
+        await DB.setPin(s, '');
+      } else {
+        if (!/^\d{4,8}$/.test(nw.value)) return fail(t('pin.invalid'));
+        await DB.setPin(s, nw.value);
+        markUnlocked();
+      }
+      const removed = pinForm === 'remove';
+      pinForm = null;
+      await save();
+      toast(removed ? t('pin.removed') : t('pin.saved'));
+    };
+    return h(
+      'div',
+      { style: { display: 'grid', gap: '10px', justifyItems: 'start' } },
+      cur,
+      nw,
+      err,
+      h(
+        'div',
+        { class: 'btnrow' },
+        h('button', { class: 'btn primary', onclick: submit }, t('edit.save')),
+        h(
+          'button',
+          {
+            class: 'btn',
+            onclick: () => {
+              pinForm = null;
+              render();
+            },
+          },
+          t('edit.cancel')
+        )
+      )
+    );
+  }
+
+  function renderLock() {
+    sideEl.replaceChildren(h('div', { class: 'logo', html: DB.LOGO_SVG + '<span>Dopablock</span>' }));
+    const input = h('input', { class: 'input', type: 'password', inputmode: 'numeric', autocomplete: 'off', placeholder: t('pin.enter'), 'aria-label': t('pin.enter'), style: { textAlign: 'center', letterSpacing: '0.35em', fontSize: '18px' } });
+    const err = h('div', { class: 'err', hidden: true });
+    const submit = async () => {
+      if (await DB.verifyPin(state.config.settings, input.value)) {
+        markUnlocked();
+        render();
+      } else {
+        err.textContent = t('pin.wrong');
+        err.hidden = false;
+        input.value = '';
+        input.focus();
+      }
+    };
+    input.addEventListener('keydown', (e) => e.key === 'Enter' && submit());
+    mainEl.replaceChildren(
+      h(
+        'div',
+        { class: 'card panel', style: { maxWidth: '420px', margin: '12vh auto 0', display: 'grid', gap: '14px', textAlign: 'center' } },
+        h('div', { style: { display: 'grid', placeItems: 'center' } }, h('span', { class: 'tile', style: { width: '52px', height: '52px', borderRadius: '18px' } }, icon('lock', 24))),
+        h('h2', null, t('pin.lockedTitle')),
+        h('p', { class: 'muted' }, t('pin.lockedText')),
+        input,
+        err,
+        h('button', { class: 'btn primary block', onclick: submit }, t('pin.unlock'))
+      )
+    );
+    setTimeout(() => input.focus(), 0);
+  }
+
   function renderSettings() {
     const s = state.config.settings;
     const update = async (patch) => {
@@ -624,9 +762,20 @@
       s.language,
       (v) => update({ language: v })
     );
+    const blockSeg = DB.segmented(
+      [
+        { value: 'blur', label: t('set.blockStyle.blur') },
+        { value: 'solid', label: t('set.blockStyle.solid') },
+      ],
+      s.blockStyle === 'solid' ? 'solid' : 'blur',
+      (v) => update({ blockStyle: v })
+    );
 
     const strict = h('input', { type: 'checkbox', checked: !!s.strict, 'aria-label': t('set.strict') });
     strict.addEventListener('change', () => update({ strict: strict.checked }));
+
+    const sync = h('input', { type: 'checkbox', checked: !!state.syncEnabled, 'aria-label': t('set.sync') });
+    sync.addEventListener('change', () => chrome.storage.local.set({ syncEnabled: sync.checked }));
 
     const fileInput = h('input', { type: 'file', accept: 'application/json,.json', hidden: true });
     fileInput.addEventListener('change', async () => {
@@ -635,6 +784,7 @@
       try {
         const data = JSON.parse(await f.text());
         if (!data || typeof data !== 'object' || !data.config || typeof data.config !== 'object') throw new Error('bad');
+        data.config.rev = Date.now();
         await chrome.storage.local.set({ config: data.config, usage: data.usage && typeof data.usage === 'object' ? data.usage : {} });
         toast(t('set.imported'));
       } catch (_) {
@@ -655,38 +805,34 @@
       }, 500);
     };
 
+    const row = (title, help, control) => h('div', { class: 'setrow' }, h('div', null, h('div', { class: 't' }, title), help ? h('div', { class: 'd' }, help) : null), control);
+
     return [
       h('div', { class: 'page-head' }, h('div', null, h('h1', null, t('set.title')), h('p', null, t('set.sub')))),
       h(
         'section',
         { class: 'card panel' },
         h('div', { class: 'panel-head' }, h('h2', null, t('set.appearance'))),
-        h('div', { class: 'setrow' }, h('div', null, h('div', { class: 't' }, t('set.theme'))), themeSeg),
-        h('div', { class: 'setrow' }, h('div', null, h('div', { class: 't' }, t('set.language'))), langSeg)
+        row(t('set.theme'), '', themeSeg),
+        row(t('set.language'), '', langSeg),
+        row(t('set.blockStyle'), t('set.blockStyleHelp'), blockSeg)
       ),
       h(
         'section',
         { class: 'card panel' },
         h('div', { class: 'panel-head' }, h('h2', null, t('set.willpower'))),
-        h(
-          'div',
-          { class: 'setrow' },
-          h('div', null, h('div', { class: 't' }, t('set.friction')), h('div', { class: 'd' }, t('set.frictionHelp'))),
-          h('div', { class: 'row2' }, stepper(s.friction, 0, 60, 5, (v) => update({ friction: v })), h('span', { class: 'muted' }, 's'))
-        ),
-        h(
-          'div',
-          { class: 'setrow' },
-          h('div', null, h('div', { class: 't' }, t('set.snooze')), h('div', { class: 'd' }, t('set.snoozeHelp'))),
-          h('div', { class: 'row2' }, stepper(s.snoozeMinutes, 1, 120, 1, (v) => update({ snoozeMinutes: v })), h('span', { class: 'muted' }, 'min'))
-        ),
-        h('div', { class: 'setrow' }, h('div', null, h('div', { class: 't' }, t('set.strict')), h('div', { class: 'd' }, t('set.strictHelp'))), h('label', { class: 'switch' }, strict, h('span')))
+        row(t('set.friction'), t('set.frictionHelp'), h('div', { class: 'row2' }, stepper(s.friction, 0, 60, 5, (v) => update({ friction: v })), h('span', { class: 'muted' }, 's'))),
+        row(t('set.snooze'), t('set.snoozeHelp'), h('div', { class: 'row2' }, stepper(s.snoozeMinutes, 1, 120, 1, (v) => update({ snoozeMinutes: v })), h('span', { class: 'muted' }, 'min'))),
+        row(t('set.goal'), t('set.goalHelp'), h('div', { class: 'row2' }, stepper(s.dailyGoalMin | 0, 0, 1440, 15, (v) => update({ dailyGoalMin: v })), h('span', { class: 'muted' }, 'min'))),
+        row(t('set.strict'), t('set.strictHelp'), h('label', { class: 'switch' }, strict, h('span'))),
+        h('div', { class: 'setrow', style: { alignItems: 'flex-start' } }, h('div', null, h('div', { class: 't' }, t('set.pin')), h('div', { class: 'd' }, t('set.pinHelp'))), pinSection())
       ),
       h(
         'section',
         { class: 'card panel' },
         h('div', { class: 'panel-head' }, h('h2', null, t('set.data'))),
-        h('p', { class: 'muted', style: { marginBottom: '16px' } }, t('set.dataHelp')),
+        row(t('set.sync'), state.syncError ? t('set.syncError') : t('set.syncHelp'), h('label', { class: 'switch' }, sync, h('span'))),
+        h('p', { class: 'muted', style: { margin: '14px 0 16px' } }, t('set.dataHelp')),
         h(
           'div',
           { class: 'btnrow' },
@@ -716,7 +862,7 @@
           )
         )
       ),
-      h('p', { class: 'about' }, t('set.about') + '  ·  v' + (chrome.runtime.getManifest ? chrome.runtime.getManifest().version : ''))
+      h('p', { class: 'about' }, t('set.about') + '  ·  v' + (chrome.runtime.getManifest ? chrome.runtime.getManifest().version : '')),
     ];
   }
 
@@ -724,6 +870,7 @@
 
   function render() {
     if (!state || editing) return;
+    if (state.config.settings.pinHash && !sessionUnlocked()) return renderLock();
     renderSide();
     let content;
     if (view === 'rules') content = renderRules();

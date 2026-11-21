@@ -306,6 +306,44 @@
       ],
     },
     {
+      id: 'threads',
+      name: 'Threads',
+      hosts: ['threads.net', 'threads.com'],
+      sections: [
+        { id: 'feed', name: 'Home feed', desc: { en: 'The scrolling feed.', de: 'Der scrollbare Feed.' }, paths: ['/'] },
+        { id: 'search', name: 'Search & discover', desc: { en: 'Search and suggested posts.', de: 'Suche und vorgeschlagene Beiträge.' }, paths: ['/search/*'] },
+        { id: 'all', name: 'Entire Threads', desc: { en: 'The whole website.', de: 'Die gesamte Website.' }, paths: ['/*'] },
+      ],
+    },
+    {
+      id: 'bluesky',
+      name: 'Bluesky',
+      hosts: ['bsky.app'],
+      sections: [
+        { id: 'feed', name: 'Home feed', desc: { en: 'Your timeline and feeds.', de: 'Deine Timeline und Feeds.' }, paths: ['/'] },
+        { id: 'explore', name: 'Explore', desc: { en: 'Trending topics and discovery.', de: 'Trends und Entdecken.' }, paths: ['/search/*', '/feeds/*'] },
+        { id: 'all', name: 'Entire Bluesky', desc: { en: 'The whole website.', de: 'Die gesamte Website.' }, paths: ['/*'] },
+      ],
+    },
+    {
+      id: 'pinterest',
+      name: 'Pinterest',
+      hosts: ['pinterest.com'],
+      sections: [
+        { id: 'home', name: 'Home feed', desc: { en: 'The endless pin feed.', de: 'Der endlose Pin-Feed.' }, paths: ['re:^(?:/[a-z]{2})?/?$'] },
+        { id: 'today', name: 'Today & ideas', desc: { en: 'Today, ideas and explore pages.', de: 'Heute-, Ideen- und Entdecken-Seiten.' }, paths: ['/today/*', '/ideas/*', '/explore/*'] },
+        { id: 'all', name: 'Entire Pinterest', desc: { en: 'The whole website.', de: 'Die gesamte Website.' }, paths: ['/*'] },
+      ],
+    },
+    {
+      id: 'discord',
+      name: 'Discord',
+      hosts: ['discord.com'],
+      sections: [
+        { id: 'all', name: 'Entire Discord', desc: { en: 'The whole website.', de: 'Die gesamte Website.' }, paths: ['/*'] },
+      ],
+    },
+    {
       id: 'twitch',
       name: 'Twitch',
       hosts: ['twitch.tv'],
