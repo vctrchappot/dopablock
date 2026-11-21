@@ -1,0 +1,300 @@
+html {
+  background: var(--bg);
+}
+body {
+  width: 392px;
+  min-height: 200px;
+  max-height: 600px;
+  overflow-y: auto;
+  overflow-x: hidden;
+  scrollbar-width: thin;
+}
+.app {
+  display: grid;
+  gap: 10px;
+  padding: 14px;
+}
+
+/* header */
+.top {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 2px 2px 0;
+}
+.top-actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  position: relative;
+}
+.pausebtn {
+  height: 36px;
+  padding: 0 14px 0 12px;
+  border-radius: 12px;
+  gap: 7px;
+}
+.pausebtn.on {
+  background: var(--orange-bg);
+  color: var(--orange-fg);
+  border-color: transparent;
+}
+.menu {
+  position: absolute;
+  top: 44px;
+  right: 0;
+  z-index: 10;
+  width: 220px;
+  padding: 8px;
+  border-radius: var(--r-md);
+  background: var(--card);
+  border: 1px solid var(--line);
+  box-shadow: var(--shadow-lg);
+  display: grid;
+  gap: 2px;
+  animation: pop 0.16s ease;
+}
+.menu .label {
+  padding: 6px 10px 4px;
+  color: var(--muted);
+  font-size: 12px;
+  font-weight: 600;
+}
+.menu button {
+  text-align: left;
+  height: 38px;
+  padding: 0 10px;
+  border: 0;
+  border-radius: 12px;
+  background: transparent;
+  font-weight: 600;
+}
+.menu button:hover {
+  background: var(--card-2);
+}
+.menu button.wait {
+  background: var(--orange-bg);
+  color: var(--orange-fg);
+}
+
+/* hero */
+.hero {
+  padding: 18px 18px 14px;
+  border-radius: var(--r-xl);
+}
+.hero-top {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+.hero-label {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  color: var(--muted);
+  font-weight: 600;
+  font-size: 13px;
+}
+.hero-label i {
+  width: 9px;
+  height: 9px;
+  border-radius: 50%;
+  background: #ff7a1a;
+  box-shadow: 0 0 0 4px rgba(255, 122, 26, 0.16);
+}
+.hero-num {
+  display: flex;
+  align-items: baseline;
+  gap: 6px;
+  margin: 10px 0 14px;
+  font-variant-numeric: tabular-nums;
+}
+.hero-num .big {
+  font-size: 60px;
+  line-height: 0.95;
+  font-weight: 300;
+  letter-spacing: -0.055em;
+}
+.hero-num .unit {
+  font-size: 17px;
+  font-weight: 500;
+  color: var(--muted);
+  margin-right: 6px;
+}
+.hairline {
+  display: grid;
+  grid-template-columns: repeat(24, 1fr);
+  align-items: end;
+  height: 64px;
+  gap: 0;
+}
+.hairline b {
+  display: block;
+  position: relative;
+  height: 100%;
+}
+.hairline b::after {
+  content: '';
+  position: absolute;
+  left: 50%;
+  bottom: 0;
+  width: 2px;
+  margin-left: -1px;
+  height: var(--h, 4px);
+  border-radius: 2px;
+  background: var(--fg);
+  opacity: 0.8;
+  transition: height 0.5s ease;
+}
+.hairline b.zero::after {
+  opacity: 0.14;
+  height: 4px;
+}
+.hairline b.now::after {
+  background: #ff7a1a;
+  opacity: 1;
+}
+.axis {
+  display: flex;
+  justify-content: space-between;
+  margin-top: 8px;
+  font-size: 11.5px;
+  color: var(--muted);
+  font-variant-numeric: tabular-nums;
+}
+.hero-foot {
+  display: flex;
+  gap: 8px;
+  margin-top: 12px;
+}
+
+/* sections */
+.section {
+  padding: 8px;
+  border-radius: var(--r-lg);
+}
+.section-head {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 8px 10px 8px;
+}
+.section-head h2 {
+  font-size: 13px;
+  font-weight: 650;
+  color: var(--fg-2);
+}
+.section-head .host {
+  margin-left: auto;
+  font-size: 12px;
+}
+.site-head {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 8px 10px;
+}
+.site-head strong {
+  font-size: 15px;
+  letter-spacing: -0.02em;
+}
+.site-head small {
+  display: block;
+  color: var(--muted);
+  font-size: 12px;
+}
+.rules {
+  display: grid;
+}
+.rules .dashed {
+  margin: 6px 10px;
+}
+.empty {
+  display: grid;
+  gap: 6px;
+  justify-items: center;
+  text-align: center;
+  padding: 22px 18px;
+  color: var(--muted);
+}
+.empty .tile {
+  width: 40px;
+  height: 40px;
+  margin-bottom: 4px;
+  border-radius: 14px;
+}
+.foot {
+  display: grid;
+  gap: 8px;
+}
+.blockbtn {
+  justify-content: flex-start;
+  height: 52px;
+  padding: 0 14px;
+  gap: 12px;
+}
+.blockbtn small {
+  display: block;
+  font-weight: 500;
+  color: var(--muted);
+  font-size: 12px;
+  line-height: 1.2;
+}
+.blockbtn span.txt {
+  text-align: left;
+  line-height: 1.25;
+}
+
+.pausebtn.focus {
+  background: var(--purple-bg);
+  color: var(--purple-fg);
+  border-color: transparent;
+}
+.menu .label + button,
+.menu button + .label {
+  margin-top: 0;
+}
+.menu .label:not(:first-child) {
+  margin-top: 6px;
+  border-top: 1px dashed var(--line-strong);
+  padding-top: 10px;
+}
+
+.pinmodal {
+  position: fixed;
+  inset: 0;
+  z-index: 30;
+  display: grid;
+  place-items: center;
+  padding: 20px;
+  background: rgba(10, 10, 10, 0.35);
+  backdrop-filter: blur(6px);
+  animation: pop 0.18s ease;
+}
+.pincard {
+  width: 100%;
+  padding: 18px;
+  display: grid;
+  gap: 12px;
+}
+.pintitle {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-weight: 650;
+}
+.input.pin {
+  text-align: center;
+  letter-spacing: 0.35em;
+  font-size: 18px;
+}
+.pinbtns {
+  display: flex;
+  gap: 8px;
+  justify-content: flex-end;
+}
+.err {
+  color: var(--red-fg);
+  font-size: 13px;
+  min-height: 0;
+}
